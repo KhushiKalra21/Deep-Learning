@@ -1,50 +1,67 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
+import gdown
+import os
 import cv2
 from PIL import Image
 
-# Load Trained CNN Model
+# ---------------------- MODEL DOWNLOAD & LOADING ----------------------
+
+MODEL_URL = "https://drive.google.com/uc?id=1a6rYW589ZueR9Mq1GCD_LZxuSSCmakXr"
+MODEL_PATH = "mnist_cnn_model.h5"
+
+# Download model if it doesn't exist
+if not os.path.exists(MODEL_PATH):
+    with st.spinner("Downloading pre-trained model..."):
+        gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+
+# Load model
 @st.cache_resource
 def load_model():
-    model = tf.keras.models.load_model("mnist_cnn_model.h5")
-    return model
+    try:
+        model = tf.keras.models.load_model(MODEL_PATH)
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
 
 model = load_model()
 
-# Image Preprocessing Function
+# ---------------------- IMAGE PREPROCESSING ----------------------
+
 def preprocess_image(image):
-    """Converts uploaded image into a format suitable for the CNN model."""
-    image = image.convert("L")  # Convert to grayscale
-    image = image.resize((28, 28))  # Resize to 28x28 (same as MNIST)
-    image = np.array(image, dtype=np.float32) / 255.0  # Normalize pixel values
+    """ Convert image to grayscale, resize to 28x28, normalize pixels. """
+    image = np.array(image.convert('L'))  # Convert to grayscale
+    image = cv2.resize(image, (28, 28))   # Resize to MNIST format
+    image = image.astype("float32") / 255.0  # Normalize (0-1)
     image = np.expand_dims(image, axis=0)  # Add batch dimension
-    image = np.expand_dims(image, axis=-1)  # Add channel dimension (28, 28, 1)
+    image = np.expand_dims(image, axis=-1) # Add channel dimension
     return image
 
-# Streamlit UI
-st.title("🖊️ Handwritten & Typed Digit Recognition")
-st.write("Upload an image of a handwritten or typed digit, and the model will predict it.")
+# ---------------------- STREAMLIT UI ----------------------
 
-# Upload Image
-uploaded_file = st.file_uploader("Upload a digit image (JPG, PNG)", type=["jpg", "png"])
+st.title("🔢 Handwritten & Typed Digit Recognition")
+st.write("Upload an image of a handwritten or typed digit, and the model will predict the number.")
+
+uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
-    # Display Uploaded Image
+    # Display the uploaded image
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
-    # Preprocess Image
+    # Preprocess the image
     processed_image = preprocess_image(image)
 
-    # Predict with Model
-    prediction = model.predict(processed_image)
-    predicted_digit = np.argmax(prediction)
+    # Perform prediction
+    if model:
+        prediction = model.predict(processed_image)
+        predicted_digit = np.argmax(prediction)
+        confidence = np.max(prediction) * 100
 
-    # Display Prediction
-    st.subheader(f"🔢 Predicted Digit: {predicted_digit}")
-
-    # Show Confidence Scores
-    st.write("**Confidence Scores:**")
-    confidence_scores = {f"Digit {i}": round(float(prediction[0][i]) * 100, 2) for i in range(10)}
-    st.json(confidence_scores)
+        # Display result
+        st.success(f"🧠 Model Prediction: **{predicted_digit}**")
+        st.info(f"📊 Confidence Level: **{confidence:.2f}%**")
+    else:
+        st.error("Model not loaded properly. Please check the model file.")
