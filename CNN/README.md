@@ -2,7 +2,7 @@
 # Handwritten & Typed Digit Recognition - README
 
 ## Live Streamlit App  
-[Streamlit App Link]([your-streamlit-app-url](https://deep-learning-xrucdcrsre5nng4ysaw6n8.streamlit.app/))
+[Streamlit App Link]((https://deep-learning-xrucdcrsre5nng4ysaw6n8.streamlit.app/))
 
 ---
 
