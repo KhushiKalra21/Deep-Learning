@@ -11,7 +11,7 @@ from PIL import Image
 MODEL_URL = "https://drive.google.com/uc?id=1a6rYW589ZueR9Mq1GCD_LZxuSSCmakXr"
 MODEL_PATH = "mnist_cnn_model.h5"
 
-# Download model if it doesn't exist
+# Download model if not found
 if not os.path.exists(MODEL_PATH):
     with st.spinner("Downloading pre-trained model..."):
         gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
@@ -31,10 +31,15 @@ model = load_model()
 # ---------------------- IMAGE PREPROCESSING ----------------------
 
 def preprocess_image(image):
-    """ Convert image to grayscale, resize to 28x28, normalize pixels. """
+    """ Convert image to grayscale, threshold, resize, and normalize for MNIST format. """
     image = np.array(image.convert('L'))  # Convert to grayscale
-    image = cv2.resize(image, (28, 28))   # Resize to MNIST format
-    image = image.astype("float32") / 255.0  # Normalize (0-1)
+    image = cv2.resize(image, (28, 28))   # Resize to 28x28 (MNIST format)
+
+    # Adaptive thresholding for better contrast (MNIST has white digits on black background)
+    _, image = cv2.threshold(image, 128, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+
+    # Normalize pixel values (0-1)
+    image = image.astype("float32") / 255.0
     image = np.expand_dims(image, axis=0)  # Add batch dimension
     image = np.expand_dims(image, axis=-1) # Add channel dimension
     return image
@@ -47,7 +52,7 @@ st.write("Upload an image of a handwritten or typed digit, and the model will pr
 uploaded_file = st.file_uploader("Upload an image", type=["png", "jpg", "jpeg"])
 
 if uploaded_file:
-    # Display the uploaded image
+    # Display uploaded image
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Image", use_column_width=True)
 
