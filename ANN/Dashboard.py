@@ -28,6 +28,9 @@ dense_layers = st.sidebar.select_slider("Number of Dense Layers", options=[2, 3,
 neurons = st.sidebar.select_slider("Neurons per Layer", options=[2**n for n in range(5, 11)], value=32)
 dropout_rate = st.sidebar.slider("Dropout Rate", min_value=0.0, max_value=0.5, value=0.2, step=0.05)
 
+# Train Model Button (Placed Outside Sidebar)
+train_button = st.button("🚀 Train the Model")
+
 # Load Dataset from Google Drive ZIP
 @st.cache_data
 def load_dataset():
@@ -84,8 +87,8 @@ def load_model():
 st.subheader("📥 Loading Pre-trained Model...")
 model = load_model()
 
-# Train Model Button (Outside Sidebar)
-if st.button("🚀 Train Model"):
+# Train Model Function
+if train_button:
     st.subheader("🔄 Training Model...")
 
     # Define Model
@@ -114,8 +117,8 @@ if st.button("🚀 Train Model"):
 
     # Plot Training & Validation Accuracy
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(history.history["accuracy"], label="Train Accuracy")
-    ax.plot(history.history["val_accuracy"], label="Validation Accuracy")
+    ax.plot(history.history["accuracy"], label="Train Accuracy", color="blue")
+    ax.plot(history.history["val_accuracy"], label="Validation Accuracy", color="red")
     ax.set_xlabel("Epochs")
     ax.set_ylabel("Accuracy")
     ax.set_title("Training & Validation Accuracy")
@@ -133,8 +136,8 @@ df_pred["Predicted Churn"] = (predictions > 0.5).astype(int)
 
 st.write(df_pred)
 
-# Visualizations
-st.subheader("📈 Visualizations")
+# VISUALS - Stunning Data Insights
+st.subheader("📈 Visual Insights on Churn")
 
 # Churn Distribution
 fig, ax = plt.subplots(figsize=(6, 4))
@@ -152,4 +155,10 @@ st.pyplot(fig)
 fig, ax = plt.subplots(figsize=(6, 4))
 sns.boxplot(x="churned", y="purchase_frequency", data=df, palette="coolwarm", ax=ax)
 ax.set_title("Purchase Frequency by Churn Status")
+st.pyplot(fig)
+
+# Churn vs Days Since Last Purchase
+fig, ax = plt.subplots(figsize=(6, 4))
+sns.boxplot(x="churned", y="days_since_last_purchase", data=df, palette="coolwarm", ax=ax)
+ax.set_title("Days Since Last Purchase by Churn Status")
 st.pyplot(fig)
