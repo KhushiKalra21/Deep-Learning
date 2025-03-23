@@ -7,10 +7,14 @@ import os
 import random
 import gdown
 from io import BytesIO
-from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
-import tempfile  # Import the tempfile module
+import tempfile
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, classification_report
+from sklearn.utils.class_weight import compute_class_weight
+from imblearn.over_sampling import SMOTE
 
 # Google Drive File IDs
 DATASET_FILE_ID = "1X40NeGmYe0epMXrewSVlbQscLaX4u9qT"
@@ -22,149 +26,214 @@ def load_dataset():
     dataset_url = f"https://drive.google.com/uc?id={DATASET_FILE_ID}"
     output_zip = "customer_data.zip"
 
-    # Use a temporary directory for downloads
-    with tempfile.TemporaryDirectory() as temp_dir:
-        output_path = os.path.join(temp_dir, output_zip)
-        gdown.download(dataset_url, output_path, quiet=True) # Changed quiet=False to True
+    try:
+        # Use a temporary directory for downloads
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, output_zip)
+            gdown.download(dataset_url, output_path, quiet=True)
 
-        with zipfile.ZipFile(output_path, 'r') as zip_ref:
-            zip_ref.extractall(temp_dir)
+            with zipfile.ZipFile(output_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
 
-        # Assuming dataset contains a single CSV file
-        csv_filename = [f for f in os.listdir(temp_dir) if f.endswith(".csv")][0]
-        df = pd.read_csv(os.path.join(temp_dir, csv_filename))
-    return df
+            # Assuming dataset contains a single CSV file
+            csv_filename = [f for f in os.listdir(temp_dir) if f.endswith(".csv")]
+            if not csv_filename:
+                raise FileNotFoundError("No CSV file found in the extracted archive.")
+            csv_filename = csv_filename[0]
+            df = pd.read_csv(os.path.join(temp_dir, csv_filename))
+        return df
+    except Exception as e:
+        st.error(f"Error loading dataset: {e}")
+        return None
 
 # Function to download and load model
 @st.cache_resource
 def load_model():
     model_url = f"https://drive.google.com/uc?id={MODEL_FILE_ID}"
     output_model = "customer_churn_model.h5"
-    # Use a temporary directory
-    with tempfile.TemporaryDirectory() as temp_dir:
-        output_path = os.path.join(temp_dir, output_model)
-        gdown.download(model_url, output_path, quiet=True) # Changed quiet=False to True
-        model = tf.keras.models.load_model(output_path)
-    return model
+    try:
+        # Use a temporary directory
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_path = os.path.join(temp_dir, output_model)
+            gdown.download(model_url, output_path, quiet=True)
+            model = tf.keras.models.load_model(output_path)
+        return model
+    except Exception as e:
+        st.error(f"Error loading model: {e}")
+        return None
 
 # Load dataset
 df = load_dataset()
+if df is None:
+    st.stop()  # Stop if dataset loading failed.
 
-# Randomly select 50,000 data points each time the model is trained
-def get_random_sample(df):
-    return df.sample(n=50000, random_state=random.randint(1, 1000))
+# 🎯 Feature Selection (Adjusted for the churn dataset)
+features = ['age', 'gender', 'income_bracket', 'num_of_purchases', 'total_spend', 'customer_rating',
+            'days_since_last_purchase', 'marital_status', 'education_level', 'occupation',
+            'preferred_store', 'payment_method', 'store_city', 'store_state', 'season',
+            'product_color', 'product_material', 'promotion_channel', 'promotion_type',
+            'promotion_target_audience']
+target = 'churned'
 
-# Preprocessing: Convert categorical variables to numerical
+# Preprocessing: Convert categorical variables to numerical and handle missing values
 def preprocess_data(df):
     categorical_columns = ['gender', 'marital_status', 'education_level', 'occupation', 'preferred_store', 'payment_method',
                                         'store_city', 'store_state', 'season', 'product_color', 'product_material', 'promotion_channel',
                                         'promotion_type', 'promotion_target_audience']
+    try:
+        # Fill missing values with the mode for categorical columns
+        for col in categorical_columns:
+            df[col] = df[col].fillna(df[col].mode()[0])
+        # Fill missing values of numerical columns with mean
+        numerical_cols = ['age', 'income_bracket', 'num_of_purchases', 'total_spend', 'customer_rating', 'days_since_last_purchase']
+        for col in numerical_cols:
+            df[col] = df[col].fillna(df[col].mean())
 
-    label_encoders = {}
+        label_encoders = {}
+        for col in categorical_columns:
+            le = LabelEncoder()
+            df[col] = le.fit_transform(df[col])
+            label_encoders[col] = le
+        return df
+    except Exception as e:
+        st.error(f"Error preprocessing data: {e}")
+        return pd.DataFrame()
 
-    for col in categorical_columns:
-        le = LabelEncoder()
-        df[col] = le.fit_transform(df[col])
-        label_encoders[col] = le
+df = preprocess_data(df)
 
-    return df
+# Handle Class Imbalance with SMOTE
+X = df[features]
+y = df[target]
+
+smote = SMOTE(random_state=552627)
+X_resampled, y_resampled = smote.fit_resample(X, y)
+
+# Standardize Data
+scaler = StandardScaler()
+X_resampled[X.columns] = scaler.fit_transform(X_resampled)
+
+# Train-Test Split
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, stratify=y_resampled, random_state=552627)
+
+# Compute Class Weights
+class_weights = compute_class_weight("balanced", classes=np.unique(y_train), y=y_train)
+class_weight_dict = {i: class_weights[i] for i in range(len(class_weights))}
 
 # Streamlit UI
 st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
-st.title("📊 Customer Churn Prediction Dashboard")
+st.title("📊 ANN Model Dashboard - Customer Churn Prediction")
 
 # Sidebar: Model Hyperparameters
 st.sidebar.header("🔧 Model Hyperparameters")
-epochs = st.sidebar.slider("Epochs", min_value=1, max_value=50, value=5)
-learning_rate = st.sidebar.selectbox("Learning Rate", [0.001, 0.005, 0.01, 0.05])
+epochs = st.sidebar.slider("Epochs", 5, 100, 5, 5)
+learning_rate = st.sidebar.selectbox("Learning Rate", [0.01, 0.001, 0.0001], index=1)
 activation_function = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh", "softmax"])
 optimizer_choice = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
-dense_layers = st.sidebar.slider("Dense Layers", min_value=2, max_value=5, value=3)
-neurons_per_layer = st.sidebar.slider("Neurons per Layer", min_value=32, max_value=512, step=32, value=128)
+dense_layers = st.sidebar.selectbox("Dense Layers", [2, 3, 4, 5])
+neurons_per_layer = st.sidebar.selectbox("Neurons per Layer", [32, 64, 128, 256, 512, 1024])
+dropout_rate = st.sidebar.slider("Dropout Rate", 0.1, 0.5, 0.1, 0.3)
 
-# "Train the Model" Button (Outside the Sidebar)
-if st.button("🚀 Train the Model"):
-    st.subheader("📥 Extracting 50,000 Random Data Points")
-    df_sample = get_random_sample(df)
-    df_sample = preprocess_data(df_sample)
+# Select Optimizer
+optimizers = {"adam": tf.keras.optimizers.Adam(learning_rate),
+              "sgd": tf.keras.optimizers.SGD(learning_rate),
+              "rmsprop": tf.keras.optimizers.RMSprop(learning_rate)}
+optimizer = optimizers[optimizer_choice]
 
-    X = df_sample.drop(columns=['churned'])  # Features
-    y = df_sample['churned']  # Target Variable
+# Train Model Button
+if st.button("🚀 Train Model"):
+    with st.spinner("Training model... ⏳"):
+        model = tf.keras.Sequential()
+        model.add(tf.keras.layers.InputLayer(input_shape=(X_train.shape[1],)))
 
-    # Define ANN Model
-    model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.Input(shape=(X.shape[1],)))
+        for _ in range(dense_layers):
+            model.add(tf.keras.layers.Dense(neurons_per_layer, activation=activation_function))
+            model.add(tf.keras.layers.Dropout(dropout_rate))
 
-    for _ in range(dense_layers):
-        model.add(tf.keras.layers.Dense(neurons_per_layer, activation=activation_function))
+        model.add(tf.keras.layers.Dense(1, activation="sigmoid"))
 
-    model.add(tf.keras.layers.Dense(1, activation="sigmoid"))
+        model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
+        history = model.fit(X_train, y_train, epochs=epochs, batch_size=128, validation_split=0.2, class_weight=class_weight_dict, verbose=0)
 
-    optimizer = tf.keras.optimizers.get(optimizer_choice)  # Get optimizer instance
-    if optimizer_choice == "adam":
-        optimizer.learning_rate = learning_rate
-    elif optimizer_choice == "sgd":
-        optimizer.learning_rate = learning_rate
-    elif optimizer_choice == "rmsprop":
-        optimizer.learning_rate = learning_rate
+    st.success("🎉 Model training complete!")
 
-    model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
+    # Model Performance
+    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
+    st.subheader("📊 Model Performance")
+    st.metric(label="Test Accuracy", value=f"{accuracy:.4f}")
+    st.metric(label="Test Loss", value=f"{loss:.4f}")
 
-    # Train Model
-    history = model.fit(X, y, epochs=epochs, batch_size=32, validation_split=0.2, verbose=1)
+    # Training Performance Plots
+    st.subheader("📈 Training Performance")
+    fig, ax = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Display Model Performance
-    st.subheader("📊 Training Progress")
-    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-
-    # Plot Loss
-    ax[0].plot(history.history['loss'], label='Training Loss')
-    ax[0].plot(history.history['val_loss'], label='Validation Loss')
-    ax[0].set_title("Loss Over Epochs")
+    # Accuracy Plot
+    ax[0].plot(history.history['accuracy'], label="Train Accuracy", color="blue")
+    ax[0].plot(history.history['val_accuracy'], label="Validation Accuracy", color="orange")
+    ax[0].set_title("Accuracy over Epochs")
     ax[0].set_xlabel("Epochs")
-    ax[0].set_ylabel("Loss")
+    ax[0].set_ylabel("Accuracy")
     ax[0].legend()
+    ax[0].grid()
 
-    # Plot Accuracy
-    ax[1].plot(history.history['accuracy'], label='Training Accuracy')
-    ax[1].plot(history.history['val_accuracy'], label='Validation Accuracy')
-    ax[1].set_title("Accuracy Over Epochs")
+    # Loss Plot
+    ax[1].plot(history.history['loss'], label="Train Loss", color="blue")
+    ax[1].plot(history.history['val_loss'], label="Validation Loss", color="orange")
+    ax[1].set_title("Loss over Epochs")
     ax[1].set_xlabel("Epochs")
-    ax[1].set_ylabel("Accuracy")
+    ax[1].set_ylabel("Loss")
     ax[1].legend()
+    ax[1].grid()
 
     st.pyplot(fig)
 
-    # Save trained model
-    with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp_model_file:
-        model.save(tmp_model_file.name)
-        st.download_button(
-            label="📥 Download Updated Model",
-            data=open(tmp_model_file.name, "rb"),
-            file_name="updated_customer_churn_model.h5",
-        )
-    # Clean up the temporary file
-    # os.remove(tmp_model_file.name) # Removed this line
+    # Confusion Matrix
+    st.subheader("📊 Confusion Matrix")
+    y_pred = (model.predict(X_test) > 0.5).astype(int)
+    cm = confusion_matrix(y_test, y_pred)
 
-st.subheader("📈 Data Insights & Visualization")
+    fig, ax = plt.subplots(figsize=(6, 4))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="coolwarm",
+                xticklabels=["Not Churned", "Churned"],
+                yticklabels=["Not Churned", "Churned"])
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("Actual")
+    st.pyplot(fig)
 
-# Churn Distribution Plot
-fig, ax = plt.subplots(figsize=(6, 4))
-sns.countplot(x=df["churned"], palette="coolwarm", ax=ax)
-ax.set_title("Customer Churn Distribution")
-ax.set_xlabel("Churn (0 = No, 1 = Yes)")
-st.pyplot(fig)
+    # Classification Report
+    st.subheader("📜 Classification Report")
+    report = classification_report(y_test, y_pred, output_dict=True)
+    report_df = pd.DataFrame(report).transpose()
+    st.dataframe(report_df)
 
-# Churn vs Age Distribution
-fig, ax = plt.subplots(figsize=(8, 5))
-sns.histplot(df, x="age", hue="churned", kde=True, element="step", palette="coolwarm", ax=ax)
-ax.set_title("Churn Distribution by Age")
-st.pyplot(fig)
+    #  Feature Importance using SHAP
+    st.subheader("🔍 Feature Importance")
+    try:
+        explainer = shap.Explainer(model, X_train[:100])
+        shap_values = explainer(X_test[:100])
 
-# Income Bracket vs Churn
-fig, ax = plt.subplots(figsize=(8, 5))
-sns.boxplot(x="churned", y="income_bracket", data=df, palette="coolwarm", ax=ax)
-ax.set_title("Income Bracket vs Churn")
-st.pyplot(fig)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        shap.summary_plot(shap_values, X_test[:100], show=False)
+        st.pyplot(fig)
 
-st.success("✅ Dashboard Ready!")
+        # Feature Importance Stats
+        st.subheader("📌 Feature Importance Stats")
+        mean_abs_shap_values = np.abs(shap_values.values).mean(axis=0)
+        importance_df = pd.DataFrame({'Feature': X.columns, 'Importance': mean_abs_shap_values})
+        importance_df = importance_df.sort_values(by="Importance", ascending=False)
+        st.dataframe(importance_df)
+    except Exception as e:
+        st.error(f"Error calculating SHAP values: {e}")
+
+# 🔗 Follow Me on GitHub Button
+st.markdown(
+    """
+    <div style="text-align: center;">
+        <a href="https://github.com/Rushil-K" target="_blank">
+            <button style="background-color: #24292e; color: white; padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;">
+                ⭐ Follow Me on GitHub
+            </button>
+        </a>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
