@@ -2,10 +2,7 @@ streamlit
 pandas
 numpy
 tensorflow
-scikit-learn
-seaborn
-matplotlib
 gdown
-protobuf
-pillow
-joblib
+scikit-learn
+matplotlib
+seaborn
