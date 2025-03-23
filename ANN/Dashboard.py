@@ -15,6 +15,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import confusion_matrix, classification_report
 from sklearn.utils.class_weight import compute_class_weight
 from imblearn.over_sampling import SMOTE
+from tensorflow.keras.optimizers import Adam, SGD, RMSprop
 
 # Google Drive File IDs
 DATASET_FILE_ID = "1X40NeGmYe0epMXrewSVlbQscLaX4u9qT"
@@ -105,7 +106,7 @@ df = preprocess_data(df)
 X = df[features]
 y = df[target]
 
-smote = SMOTE(random_state=552627)
+smote = SMOTE(random_state=552134) # Changed random_state
 X_resampled, y_resampled = smote.fit_resample(X, y)
 
 # Standardize Data
@@ -113,7 +114,7 @@ scaler = StandardScaler()
 X_resampled[X.columns] = scaler.fit_transform(X_resampled)
 
 # Train-Test Split
-X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, stratify=y_resampled, random_state=552627)
+X_train, X_test, y_train, y_test = train_test_split(X_resampled, y_resampled, test_size=0.2, stratify=y_resampled, random_state=552134) # Changed random_state
 
 # Compute Class Weights
 class_weights = compute_class_weight("balanced", classes=np.unique(y_train), y=y_train)
@@ -134,9 +135,7 @@ neurons_per_layer = st.sidebar.selectbox("Neurons per Layer", [32, 64, 128, 256,
 dropout_rate = st.sidebar.slider("Dropout Rate", 0.1, 0.5, 0.1, 0.3)
 
 # Select Optimizer
-optimizers = {"adam": tf.keras.optimizers.Adam(learning_rate),
-              "sgd": tf.keras.optimizers.SGD(learning_rate),
-              "rmsprop": tf.keras.optimizers.RMSprop(learning_rate)}
+optimizers = {"adam": Adam(learning_rate), "sgd": SGD(learning_rate), "rmsprop": RMSprop(learning_rate)}
 optimizer = optimizers[optimizer_choice]
 
 # Train Model Button
@@ -223,17 +222,3 @@ if st.button("🚀 Train Model"):
         st.dataframe(importance_df)
     except Exception as e:
         st.error(f"Error calculating SHAP values: {e}")
-
-# 🔗 Follow Me on GitHub Button
-st.markdown(
-    """
-    <div style="text-align: center;">
-        <a href="https://github.com/Rushil-K" target="_blank">
-            <button style="background-color: #24292e; color: white; padding: 10px 20px; font-size: 16px; border: none; border-radius: 5px; cursor: pointer;">
-                ⭐ Follow Me on GitHub
-            </button>
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
