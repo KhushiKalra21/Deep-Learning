@@ -2,8 +2,7 @@ streamlit
 pandas
 numpy
 tensorflow
-matplotlib
-seaborn
 scikit-learn
+seaborn
+matplotlib
 gdown
-zipfile36
