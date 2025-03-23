@@ -2,128 +2,154 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import tensorflow as tf
-import gdown
 import zipfile
-import os
+import io
+import requests
 import random
-import matplotlib.pyplot as plt
 import seaborn as sns
-from io import BytesIO
-from sklearn.model_selection import train_test_split
+import matplotlib.pyplot as plt
 from sklearn.preprocessing import StandardScaler
 
-# Google Drive Links
-MODEL_URL = "https://drive.google.com/uc?id=1o02g0r4xjlhWDUewEAlGb-kFQU9QcCqP"
-DATASET_ZIP_URL = "https://drive.google.com/uc?id=1X40NeGmYe0epMXrewSVlbQscLaX4u9qT"
+# Set Streamlit page config
+st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
 
-# File Paths
-MODEL_PATH = "customer_churn_model.h5"
-DATASET_ZIP_PATH = "dataset.zip"
-EXTRACTED_FOLDER = "extracted_data"
+# Title
+st.title("📊 Customer Churn Prediction Dashboard")
 
-# Download and load pre-trained model
-@st.cache_resource
-def load_model():
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
-    return tf.keras.models.load_model(MODEL_PATH)
+# Sidebar for Hyperparameter Selection
+st.sidebar.header("🔧 Hyperparameter Tuning")
 
-# Download, extract, and sample dataset
+# Hyperparameter Slicers
+epochs = st.sidebar.slider("Epochs", min_value=1, max_value=50, value=10, step=1)
+learning_rate = st.sidebar.select_slider("Learning Rate", options=[0.1, 0.01, 0.001, 0.0001], value=0.001)
+activation_fn = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh", "softmax"])
+optimizer = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
+dense_layers = st.sidebar.select_slider("Number of Dense Layers", options=[2, 3, 4, 5], value=3)
+neurons = st.sidebar.select_slider("Neurons per Layer", options=[2**n for n in range(5, 11)], value=32)
+dropout_rate = st.sidebar.slider("Dropout Rate", min_value=0.0, max_value=0.5, value=0.2, step=0.05)
+
+# Load Dataset from Google Drive ZIP
 @st.cache_data
 def load_dataset():
-    gdown.download(DATASET_ZIP_URL, DATASET_ZIP_PATH, quiet=False)
-
-    with zipfile.ZipFile(DATASET_ZIP_PATH, "r") as zip_ref:
-        zip_ref.extractall(EXTRACTED_FOLDER)
-
-    extracted_files = os.listdir(EXTRACTED_FOLDER)
-    csv_file = [file for file in extracted_files if file.endswith(".csv")][0]
-
-    full_data = pd.read_csv(os.path.join(EXTRACTED_FOLDER, csv_file))
-
-    sampled_data = full_data.sample(n=50000, random_state=random.randint(1, 10000))
-    return sampled_data
-
-# Sidebar - Hyperparameters
-st.sidebar.header("⚙️ Model Hyperparameters")
-epochs = st.sidebar.slider("Epochs", 1, 50, 10)
-learning_rate = st.sidebar.selectbox("Learning Rate", [0.001, 0.01, 0.1, 0.2])
-activation = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh", "softmax"])
-optimizer = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
-dense_layers = st.sidebar.slider("Dense Layers", 2, 5, 3)
-neurons_per_layer = st.sidebar.slider("Neurons per Layer (2^n)", 5, 10, 7)
-dropout_rate = st.sidebar.slider("Dropout Rate", 0.0, 0.5, 0.05)
-
-# Main UI
-st.title("🚀 Customer Churn Prediction Dashboard")
-st.markdown("### 📊 Interactive AI Model Training & Visualization")
-
-# Load dataset preview
-st.subheader("📥 Loading Dataset...")
-dataset = load_dataset()
-st.write(dataset.head())
-st.success("✅ Dataset Loaded Successfully!")
-
-# Train the Model Button
-if st.button("🚀 Train the Model"):
-    st.subheader("🔄 Training the Model...")
+    dataset_url = "https://drive.google.com/uc?export=download&id=1X40NeGmYe0epMXrewSVlbQscLaX4u9qT"
+    response = requests.get(dataset_url)
+    zip_file = zipfile.ZipFile(io.BytesIO(response.content))
     
-    # Prepare features & target
-    X = dataset.drop(columns=["churned"])
-    y = dataset["churned"]
+    # Extract CSV file inside ZIP
+    csv_filename = zip_file.namelist()[0]  # Assume first file is dataset
+    df = pd.read_csv(zip_file.open(csv_filename))
 
-    # Normalize data
+    # Select 50,000 random rows
+    df_sampled = df.sample(n=50000, random_state=random.randint(1, 10000))
+    return df_sampled
+
+# Load dataset
+st.subheader("📂 Loading Dataset...")
+df = load_dataset()
+st.write(df.head())
+
+# Preprocess Data
+def preprocess_data(df):
+    categorical_cols = ["gender", "loyalty_program", "income_bracket"]
+    numerical_cols = ["age", "membership_years", "purchase_frequency", "total_transactions",
+                      "days_since_last_purchase", "social_media_engagement", "customer_support_calls"]
+
+    # One-hot encode categorical variables
+    df = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+
+    # Scale numerical variables
     scaler = StandardScaler()
-    X = scaler.fit_transform(X)
+    df[numerical_cols] = scaler.fit_transform(df[numerical_cols])
 
-    # Train-test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X = df.drop(columns=["churned"])
+    y = df["churned"]
 
-    # Build ANN Model
-    model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.InputLayer(input_shape=(X.shape[1],)))
+    return X, y
 
+# Preprocess dataset
+X, y = preprocess_data(df)
+
+# Load Trained Model from Google Drive
+@st.cache_resource
+def load_model():
+    model_url = "https://drive.google.com/uc?export=download&id=1o02g0r4xjlhWDUewEAlGb-kFQU9QcCqP"
+    response = requests.get(model_url)
+    
+    with open("customer_churn_model.h5", "wb") as f:
+        f.write(response.content)
+    
+    return tf.keras.models.load_model("customer_churn_model.h5")
+
+# Load model
+st.subheader("📥 Loading Pre-trained Model...")
+model = load_model()
+
+# Train Model Button (Outside Sidebar)
+if st.button("🚀 Train Model"):
+    st.subheader("🔄 Training Model...")
+
+    # Define Model
+    new_model = tf.keras.models.Sequential()
+    new_model.add(tf.keras.layers.Input(shape=(X.shape[1],)))
+    
     for _ in range(dense_layers):
-        model.add(tf.keras.layers.Dense(2**neurons_per_layer, activation=activation))
-        model.add(tf.keras.layers.Dropout(dropout_rate))
+        new_model.add(tf.keras.layers.Dense(neurons, activation=activation_fn))
+        new_model.add(tf.keras.layers.Dropout(dropout_rate))
+    
+    new_model.add(tf.keras.layers.Dense(1, activation="sigmoid"))
 
-    model.add(tf.keras.layers.Dense(1, activation="sigmoid"))
-
-    model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
+    # Compile Model
+    new_model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
 
     # Train Model
-    history = model.fit(X_train, y_train, epochs=epochs, batch_size=32, validation_data=(X_test, y_test), verbose=1)
+    history = new_model.fit(X, y, epochs=epochs, batch_size=32, validation_split=0.2, verbose=1)
+    
+    # Save New Model
+    new_model.save("customer_churn_trained_model.h5")
+    st.success("✅ Model Training Completed & Saved as `customer_churn_trained_model.h5`!")
 
-    st.success("✅ Model Training Completed!")
+    # Display Training Accuracy
+    st.write(f"Final Training Accuracy: {history.history['accuracy'][-1]:.4f}")
+    st.write(f"Final Validation Accuracy: {history.history['val_accuracy'][-1]:.4f}")
 
-    # Plot Training Accuracy
+    # Plot Training & Validation Accuracy
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(history.history["accuracy"], label="Train Accuracy", marker="o")
-    ax.plot(history.history["val_accuracy"], label="Test Accuracy", marker="s")
+    ax.plot(history.history["accuracy"], label="Train Accuracy")
+    ax.plot(history.history["val_accuracy"], label="Validation Accuracy")
     ax.set_xlabel("Epochs")
     ax.set_ylabel("Accuracy")
+    ax.set_title("Training & Validation Accuracy")
     ax.legend()
-    ax.set_title("Model Accuracy Over Epochs")
     st.pyplot(fig)
 
-    # Save model & download link
-    model.save("trained_model.h5")
-    with open("trained_model.h5", "rb") as f:
-        st.download_button("📥 Download Trained Model", f, file_name="trained_model.h5")
+# Predictions on Sample Data
+st.subheader("🔍 Predicting Customer Churn")
+random_sample = X.sample(10)
+predictions = model.predict(random_sample)
 
-    # Feature Importance (Correlation Heatmap)
-    st.subheader("🔥 Feature Importance Analysis")
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.heatmap(dataset.corr(), annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5)
-    st.pyplot(fig)
+df_pred = random_sample.copy()
+df_pred["Predicted Churn Probability"] = predictions
+df_pred["Predicted Churn"] = (predictions > 0.5).astype(int)
 
-    # Churn Probability Distribution
-    st.subheader("📊 Churn Probability Distribution")
-    predicted_probs = model.predict(X_test)
-    fig, ax = plt.subplots(figsize=(8, 4))
-    sns.histplot(predicted_probs, bins=20, kde=True, color="blue")
-    ax.set_xlabel("Predicted Churn Probability")
-    ax.set_ylabel("Frequency")
-    ax.set_title("Distribution of Churn Predictions")
-    st.pyplot(fig)
+st.write(df_pred)
 
-st.info("🎯 Select hyperparameters from the sidebar and click 'Train the Model' to begin!")
+# Visualizations
+st.subheader("📈 Visualizations")
+
+# Churn Distribution
+fig, ax = plt.subplots(figsize=(6, 4))
+sns.countplot(x=df["churned"], palette="coolwarm", ax=ax)
+ax.set_title("Churn Distribution")
+st.pyplot(fig)
+
+# Churn vs Age
+fig, ax = plt.subplots(figsize=(6, 4))
+sns.histplot(df, x="age", hue="churned", kde=True, palette="coolwarm", ax=ax)
+ax.set_title("Age Distribution by Churn")
+st.pyplot(fig)
+
+# Churn vs Purchase Frequency
+fig, ax = plt.subplots(figsize=(6, 4))
+sns.boxplot(x="churned", y="purchase_frequency", data=df, palette="coolwarm", ax=ax)
+ax.set_title("Purchase Frequency by Churn Status")
+st.pyplot(fig)
