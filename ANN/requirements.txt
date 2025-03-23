@@ -8,3 +8,4 @@ matplotlib
 gdown
 protobuf
 pillow
+joblib
