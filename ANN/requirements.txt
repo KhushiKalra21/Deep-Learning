@@ -1,6 +1,6 @@
 streamlit
-tensorflow
 pandas
 numpy
+tensorflow
 requests
-
+zipfile36
