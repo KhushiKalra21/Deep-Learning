@@ -4,3 +4,6 @@ numpy
 tensorflow
 gdown
 zipfile36
+matplotlib
+seaborn
+scikit-learn
