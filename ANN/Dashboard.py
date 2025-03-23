@@ -1,149 +1,157 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import seaborn as sns
-import tensorflow as tf
 import gdown
-import os
 import zipfile
-from sklearn.model_selection import train_test_split
+import os
 from sklearn.preprocessing import StandardScaler, LabelEncoder
-from tensorflow.keras.models import load_model
+from io import BytesIO
 
-# ============================
-# 📌 GOOGLE DRIVE FILE LINKS
-# ============================
+# Set Streamlit Page Configuration
+st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
+
+# Download Dataset & Model from Google Drive
 DATASET_URL = "https://drive.google.com/uc?id=1X40NeGmYe0epMXrewSVlbQscLaX4u9qT"
 MODEL_URL = "https://drive.google.com/uc?id=1o02g0r4xjlhWDUewEAlGb-kFQU9QcCqP"
-DATASET_PATH = "customer_dataset.zip"
+
+DATASET_PATH = "customer_data.zip"
 MODEL_PATH = "customer_churn_model.h5"
 
-# ============================
-# 🔽 DOWNLOAD FILES IF NOT EXIST
-# ============================
+# Function to download files
+def download_file(url, output):
+    gdown.download(url, output, quiet=False)
 
-# Download Dataset
+# Download dataset if not present
 if not os.path.exists(DATASET_PATH):
-    st.info("Downloading dataset...")
-    gdown.download(DATASET_URL, DATASET_PATH, quiet=False)
+    with st.spinner("Downloading dataset..."):
+        download_file(DATASET_URL, DATASET_PATH)
 
-# Extract Dataset
-if os.path.exists(DATASET_PATH):
-    with zipfile.ZipFile(DATASET_PATH, 'r') as zip_ref:
-        zip_ref.extractall("data")  # Extract inside 'data' folder
-    st.success("Dataset extracted successfully!")
+# Extract ZIP file
+with zipfile.ZipFile(DATASET_PATH, "r") as zip_ref:
+    zip_ref.extractall("dataset")
 
-# Download Trained Model
+csv_file = [f for f in os.listdir("dataset") if f.endswith(".csv")][0]  # Get CSV filename
+df = pd.read_csv(os.path.join("dataset", csv_file))
+
+# Download model if not present
 if not os.path.exists(MODEL_PATH):
-    st.info("Downloading trained model...")
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+    with st.spinner("Downloading trained model..."):
+        download_file(MODEL_URL, MODEL_PATH)
 
-# Load Model
-if os.path.exists(MODEL_PATH):
-    model = load_model(MODEL_PATH)
-    st.success("Trained model loaded successfully!")
+# Load Pre-trained Model
+model = tf.keras.models.load_model(MODEL_PATH)
 
-# ============================
-# 📊 LOAD DATA & PICK 50,000 RANDOM RECORDS
-# ============================
+# Select 50,000 random samples each time
+df = df.sample(n=50000, random_state=np.random.randint(1000))
 
-DATA_FILE = "data/customer_data.csv"
-if os.path.exists(DATA_FILE):
-    df = pd.read_csv(DATA_FILE)
+# Data Preprocessing
+def preprocess_data(df):
+    df = df.copy()
 
-    # 🟢 Random 50,000 records, har baar alag
-    df = df.sample(n=50000, random_state=np.random.randint(1, 10000))
-
-    st.write("### 🔍 Preview of 50,000 Sampled Customers", df.head())
-
-    # Encode categorical variables
-    le = LabelEncoder()
-    for col in df.select_dtypes(include=['object']).columns:
+    # Encode categorical features
+    label_encoders = {}
+    for col in ["gender", "loyalty_program"]:  
+        le = LabelEncoder()
         df[col] = le.fit_transform(df[col])
+        label_encoders[col] = le
 
-    # Splitting Data
-    X = df.drop(columns=["churned"])
-    y = df["churned"]
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
-    # Standardization
+    # Scale numerical features
     scaler = StandardScaler()
-    X_train = scaler.fit_transform(X_train)
-    X_test = scaler.transform(X_test)
+    numerical_cols = ["age", "income_bracket", "membership_years", "purchase_frequency",
+                      "total_transactions", "days_since_last_purchase", "social_media_engagement",
+                      "customer_support_calls"]
+    
+    df[numerical_cols] = scaler.fit_transform(df[numerical_cols])
+    
+    return df, label_encoders, scaler
 
-# ============================
-# 🎛 STREAMLIT SIDEBAR CONTROLS
-# ============================
+df, label_encoders, scaler = preprocess_data(df)
 
-st.sidebar.title("🔧 Model Hyperparameters")
-epochs = st.sidebar.slider("Epochs", min_value=10, max_value=100, step=10, value=50)
+# Sidebar Hyperparameter Selection
+st.sidebar.header("Model Hyperparameters")
+
+epochs = st.sidebar.slider("Epochs", 10, 100, 50, 10)
 learning_rate = st.sidebar.selectbox("Learning Rate", [0.01, 0.001, 0.0001], index=1)
-activation = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh"], index=0)
-optimizer = st.sidebar.selectbox("Optimizer", ["adam", "sgd"], index=0)
-dense_layers = st.sidebar.selectbox("Dense Layers", [2, 3, 4], index=1)
-neurons = st.sidebar.selectbox("Neurons per Layer", [32, 64, 128, 256], index=1)
+activation_function = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh"])
+optimizer = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
+num_layers = st.sidebar.slider("Hidden Layers", 1, 4, 2)
+neurons_per_layer = st.sidebar.slider("Neurons per Layer", 32, 512, 128, 32)
 
-# ============================
-# 🏋️ TRAIN MODEL BUTTON (OUTSIDE SIDEBAR)
-# ============================
+# Main Dashboard Layout
+st.title("📊 Customer Churn Prediction Dashboard")
 
+# Train Button
 if st.button("🚀 Train the Model"):
     with st.spinner("Training the model..."):
-        # Define New Model Architecture
-        new_model = tf.keras.models.Sequential()
-        new_model.add(tf.keras.layers.Dense(neurons, activation=activation, input_shape=(X_train.shape[1],)))
-        for _ in range(dense_layers - 1):
-            new_model.add(tf.keras.layers.Dense(neurons, activation=activation))
-        new_model.add(tf.keras.layers.Dense(1, activation='sigmoid'))  # Output layer
+
+        # Build ANN Model
+        model = tf.keras.Sequential()
+        model.add(tf.keras.layers.InputLayer(input_shape=(df.shape[1] - 1,)))
+
+        for _ in range(num_layers):
+            model.add(tf.keras.layers.Dense(neurons_per_layer, activation=activation_function))
+
+        model.add(tf.keras.layers.Dense(1, activation="sigmoid"))
 
         # Compile Model
-        new_model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
+        model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
 
         # Train Model
-        history = new_model.fit(X_train, y_train, epochs=epochs, validation_data=(X_test, y_test), verbose=1)
+        history = model.fit(df.drop(columns=["churned"]), df["churned"], epochs=epochs, batch_size=32, verbose=0)
 
-        # Save the Model
-        new_model.save("new_trained_model.h5")
-        st.success("Model training complete! ✅")
+        # Plot Training Performance
+        st.subheader("📈 Training Performance")
+        fig, ax = plt.subplots(1, 2, figsize=(12, 4))
 
-        # ============================
-        # 📈 VISUALIZATIONS
-        # ============================
-
-        st.write("## 📊 Training Progress")
-        fig, ax = plt.subplots(1, 2, figsize=(12, 5))
-
-        ax[0].plot(history.history["accuracy"], label="Train Accuracy")
-        ax[0].plot(history.history["val_accuracy"], label="Test Accuracy")
-        ax[0].set_title("📈 Accuracy over Epochs")
+        ax[0].plot(history.history["loss"], label="Loss")
+        ax[0].set_title("Loss Curve")
+        ax[0].set_xlabel("Epochs")
+        ax[0].set_ylabel("Loss")
         ax[0].legend()
 
-        ax[1].plot(history.history["loss"], label="Train Loss")
-        ax[1].plot(history.history["val_loss"], label="Test Loss")
-        ax[1].set_title("📉 Loss over Epochs")
+        ax[1].plot(history.history["accuracy"], label="Accuracy", color="green")
+        ax[1].set_title("Accuracy Curve")
+        ax[1].set_xlabel("Epochs")
+        ax[1].set_ylabel("Accuracy")
         ax[1].legend()
 
         st.pyplot(fig)
 
-# ============================
-# 📊 DASHBOARD VISUALS
-# ============================
+# Churn Insights Visualization
+st.subheader("📊 Churn Insights")
 
-st.write("## 🔍 Data Insights")
+fig, ax = plt.subplots(1, 2, figsize=(12, 4))
 
-# Age vs Churned Customers
-fig, ax = plt.subplots(figsize=(8, 5))
-sns.histplot(df[df['churned'] == 1]['age'], bins=30, kde=True, color="red", label="Churned")
-sns.histplot(df[df['churned'] == 0]['age'], bins=30, kde=True, color="blue", label="Retained")
-ax.set_title("Age Distribution of Churned vs Retained Customers")
-plt.legend()
+# Churn Distribution
+sns.countplot(x="churned", data=df, palette="pastel", ax=ax[0])
+ax[0].set_title("Churned vs Retained Customers")
+
+# Churn vs Age
+sns.histplot(df[df["churned"] == 1]["age"], kde=True, color="red", label="Churned", ax=ax[1])
+sns.histplot(df[df["churned"] == 0]["age"], kde=True, color="blue", label="Retained", ax=ax[1])
+ax[1].set_title("Churn Based on Age")
+ax[1].legend()
+
 st.pyplot(fig)
 
-# Churn Rate by Loyalty Program
-fig, ax = plt.subplots(figsize=(8, 5))
-sns.barplot(x=df["loyalty_program"], y=df["churned"], ci=None, palette="coolwarm")
-ax.set_title("📊 Churn Rate by Loyalty Program")
-st.pyplot(fig)
+# Loyalty Program Analysis
+st.subheader("🔍 Impact of Loyalty Program on Churn")
+loyalty_churn = df.groupby("loyalty_program")["churned"].mean().reset_index()
+st.bar_chart(loyalty_churn.set_index("loyalty_program"))
 
-st.success("Dashboard loaded successfully! 🚀")
+# Show Churn Probability Table
+st.subheader("🔢 Churn Probability for Sample Customers")
+df_sample = df.sample(10)
+df_sample["Churn Probability"] = model.predict(df_sample.drop(columns=["churned"])).flatten()
+st.write(df_sample[["age", "income_bracket", "loyalty_program", "Churn Probability"]])
+
+# Recommendations
+st.subheader("📌 Business Recommendations")
+st.markdown("""
+- **High-risk customers (Churn Probability > 0.7)** should receive personalized retention campaigns.
+- **Loyalty program members** have lower churn rates; promote benefits to non-members.
+- **Older customers** tend to churn less, while younger customers need engagement strategies.
+""")
