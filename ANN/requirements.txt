@@ -3,4 +3,4 @@ pandas
 numpy
 tensorflow
 requests
-zipfile36
+gdown
