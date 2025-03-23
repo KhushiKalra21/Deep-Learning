@@ -1,296 +1,170 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+import tensorflow as tf
+import zipfile
 import os
 import random
-import joblib
-from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import accuracy_score, precision_score, recall_score
-from sklearn.pipeline import Pipeline
+import gdown
+from io import BytesIO
+from sklearn.preprocessing import LabelEncoder
+import matplotlib.pyplot as plt
+import seaborn as sns
+import tempfile  # Import the tempfile module
 
-# Set page configuration
-st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
+# Google Drive File IDs
+DATASET_FILE_ID = "1X40NeGmYe0epMXrewSVlbQscLaX4u9qT"
+MODEL_FILE_ID = "1o02g0r4xjlhWDUewEAlGb-kFQU9QcCqP"
 
-# Set a random seed for reproducibility
-np.random.seed(42)
-random.seed(42)
-
-# Function to generate synthetic customer data
+# Function to download and extract dataset
 @st.cache_data
-def generate_synthetic_data(n_samples=1000):
-    # Generate features
-    age = np.random.normal(40, 10, n_samples).astype(int)
-    age = np.clip(age, 18, 80)  # Clip age to realistic values
-    
-    income_bracket = np.random.normal(50000, 20000, n_samples).astype(int)
-    income_bracket = np.clip(income_bracket, 20000, 150000)
-    
-    # Generate categorical features
-    gender = np.random.choice(['Male', 'Female'], n_samples)
-    
-    marital_status = np.random.choice(
-        ['Single', 'Married', 'Divorced', 'Widowed'], 
-        n_samples, 
-        p=[0.3, 0.5, 0.15, 0.05]
-    )
-    
-    education_level = np.random.choice(
-        ['High School', 'Bachelor', 'Master', 'PhD'], 
-        n_samples,
-        p=[0.3, 0.4, 0.2, 0.1]
-    )
-    
-    tenure = np.random.gamma(2, 2, n_samples).astype(int)
-    tenure = np.clip(tenure, 0, 10)  # Years as customer
-    
-    products_owned = np.random.poisson(2, n_samples)
-    products_owned = np.clip(products_owned, 1, 6)
-    
-    monthly_spend = np.random.gamma(shape=5, scale=20, size=n_samples).astype(int)
-    monthly_spend = np.clip(monthly_spend, 20, 500)
-    
-    # Generate interaction features that affect churn
-    service_issues = np.random.randint(0, 5, n_samples)
-    satisfaction_score = np.random.normal(7, 2, n_samples)
-    satisfaction_score = np.clip(satisfaction_score, 0, 10)
-    
-    # Create a churn probability model
-    churn_probability = 0.1 + \
-                        0.2 * (service_issues > 2) + \
-                        0.3 * (satisfaction_score < 5) + \
-                        0.1 * (tenure < 2) + \
-                        0.1 * (monthly_spend < 50) - \
-                        0.1 * (products_owned > 3)
-    
-    churn_probability = np.clip(churn_probability, 0.01, 0.99)
-    
-    # Generate churn outcome
-    churned = np.random.binomial(1, churn_probability)
-    
-    # Create DataFrame
-    df = pd.DataFrame({
-        'age': age,
-        'income_bracket': income_bracket,
-        'gender': gender,
-        'marital_status': marital_status,
-        'education_level': education_level,
-        'tenure': tenure,
-        'products_owned': products_owned,
-        'monthly_spend': monthly_spend,
-        'service_issues': service_issues,
-        'satisfaction_score': satisfaction_score.round(1),
-        'churned': churned
-    })
-    
+def load_dataset():
+    dataset_url = f"https://drive.google.com/uc?id={DATASET_FILE_ID}"
+    output_zip = "customer_data.zip"
+
+    # Use a temporary directory for downloads
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_path = os.path.join(temp_dir, output_zip)
+        gdown.download(dataset_url, output_path, quiet=True) # Changed quiet=False to True
+
+        with zipfile.ZipFile(output_path, 'r') as zip_ref:
+            zip_ref.extractall(temp_dir)
+
+        # Assuming dataset contains a single CSV file
+        csv_filename = [f for f in os.listdir(temp_dir) if f.endswith(".csv")][0]
+        df = pd.read_csv(os.path.join(temp_dir, csv_filename))
     return df
 
-# Cache the training function to improve performance
+# Function to download and load model
 @st.cache_resource
-def train_model(_df, test_size=0.2, n_estimators=100):
-    # Convert categorical variables
-    df_encoded = pd.get_dummies(_df, columns=['gender', 'marital_status', 'education_level'], drop_first=True)
-    
-    # Split features and target
-    X = df_encoded.drop('churned', axis=1)
-    y = df_encoded['churned']
-    
-    # Split data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=42)
-    
-    # Create and train a pipeline with preprocessing and model
-    pipeline = Pipeline([
-        ('scaler', StandardScaler()),
-        ('classifier', RandomForestClassifier(n_estimators=n_estimators, random_state=42, n_jobs=-1))
-    ])
-    
-    # Train the model
-    pipeline.fit(X_train, y_train)
-    
-    # Make predictions
-    y_pred = pipeline.predict(X_test)
-    
-    # Calculate metrics
-    metrics = {
-        'accuracy': accuracy_score(y_test, y_pred),
-        'precision': precision_score(y_test, y_pred),
-        'recall': recall_score(y_test, y_pred),
-        'feature_importance': dict(zip(X.columns, pipeline.named_steps['classifier'].feature_importances_))
-    }
-    
-    return pipeline, metrics
+def load_model():
+    model_url = f"https://drive.google.com/uc?id={MODEL_FILE_ID}"
+    output_model = "customer_churn_model.h5"
+    # Use a temporary directory
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_path = os.path.join(temp_dir, output_model)
+        gdown.download(model_url, output_path, quiet=True) # Changed quiet=False to True
+        model = tf.keras.models.load_model(output_path)
+    return model
 
-# Title and introduction
+# Load dataset
+df = load_dataset()
+
+# Randomly select 50,000 data points each time the model is trained
+def get_random_sample(df):
+    return df.sample(n=50000, random_state=random.randint(1, 1000))
+
+# Preprocessing: Convert categorical variables to numerical
+def preprocess_data(df):
+    categorical_columns = ['gender', 'marital_status', 'education_level', 'occupation', 'preferred_store', 'payment_method',
+                                        'store_city', 'store_state', 'season', 'product_color', 'product_material', 'promotion_channel',
+                                        'promotion_type', 'promotion_target_audience']
+
+    label_encoders = {}
+
+    for col in categorical_columns:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col])
+        label_encoders[col] = le
+
+    return df
+
+# Streamlit UI
+st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
 st.title("📊 Customer Churn Prediction Dashboard")
-st.markdown("""
-This dashboard demonstrates customer churn prediction using machine learning.
-The app uses synthetically generated customer data that mimics real-world patterns.
-""")
-st.markdown("---")
 
-# Sidebar for data and model parameters
-st.sidebar.header("🔧 Settings")
+# Sidebar: Model Hyperparameters
+st.sidebar.header("🔧 Model Hyperparameters")
+epochs = st.sidebar.slider("Epochs", min_value=1, max_value=50, value=5)
+learning_rate = st.sidebar.selectbox("Learning Rate", [0.001, 0.005, 0.01, 0.05])
+activation_function = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh", "softmax"])
+optimizer_choice = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
+dense_layers = st.sidebar.slider("Dense Layers", min_value=2, max_value=5, value=3)
+neurons_per_layer = st.sidebar.slider("Neurons per Layer", min_value=32, max_value=512, step=32, value=128)
 
-# Data parameters
-data_tab, model_tab = st.sidebar.tabs(["Data Settings", "Model Settings"])
+# "Train the Model" Button (Outside the Sidebar)
+if st.button("🚀 Train the Model"):
+    st.subheader("📥 Extracting 50,000 Random Data Points")
+    df_sample = get_random_sample(df)
+    df_sample = preprocess_data(df_sample)
 
-with data_tab:
-    data_size = st.slider("Sample Size", min_value=500, max_value=5000, value=1000, step=500)
-    include_noise = st.checkbox("Include Random Noise", value=False)
+    X = df_sample.drop(columns=['churned'])  # Features
+    y = df_sample['churned']  # Target Variable
 
-with model_tab:
-    n_estimators = st.slider("Number of Trees", min_value=10, max_value=200, value=50, step=10)
-    test_size = st.slider("Test Size", min_value=0.1, max_value=0.5, value=0.2, step=0.1)
+    # Define ANN Model
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Input(shape=(X.shape[1],)))
 
-# Generate or load data
-data_container = st.container()
-with data_container:
-    st.subheader("📋 Customer Data")
-    
-    # Generate synthetic data
-    with st.spinner("Generating synthetic customer data..."):
-        df = generate_synthetic_data(data_size)
-        
-        # Add noise if requested
-        if include_noise:
-            df['random_feature'] = np.random.normal(0, 1, len(df))
-        
-        st.dataframe(df.head(10), use_container_width=True)
-        st.caption(f"Showing 10 of {len(df)} records")
+    for _ in range(dense_layers):
+        model.add(tf.keras.layers.Dense(neurons_per_layer, activation=activation_function))
 
-# Train model button
-train_col, _ = st.columns([1, 2])
-with train_col:
-    train_button = st.button("🚀 Train Churn Prediction Model", use_container_width=True)
+    model.add(tf.keras.layers.Dense(1, activation="sigmoid"))
 
-# Model training section
-if train_button:
-    with st.spinner("Training model... Please wait"):
-        # Train the model
-        try:
-            model, metrics = train_model(df, test_size, n_estimators)
-            
-            # Display metrics
-            st.subheader("📈 Model Performance")
-            
-            col1, col2, col3 = st.columns(3)
-            col1.metric("Accuracy", f"{metrics['accuracy']:.2%}")
-            col2.metric("Precision", f"{metrics['precision']:.2%}")
-            col3.metric("Recall", f"{metrics['recall']:.2%}")
-            
-            # Feature importance plot
-            st.subheader("🔍 Feature Importance")
-            
-            # Sort feature importance
-            importance_df = pd.DataFrame({
-                'Feature': list(metrics['feature_importance'].keys()),
-                'Importance': list(metrics['feature_importance'].values())
-            }).sort_values('Importance', ascending=False)
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.barplot(x='Importance', y='Feature', data=importance_df.head(10), palette='viridis')
-            ax.set_title("Top 10 Features for Predicting Churn")
-            st.pyplot(fig)
-            
-            # Save model option
-            if st.button("💾 Save Model"):
-                # Save the model to a file
-                model_filename = "churn_prediction_model.joblib"
-                joblib.dump(model, model_filename)
-                
-                # Provide download link
-                with open(model_filename, "rb") as f:
-                    model_bytes = f.read()
-                    
-                st.download_button(
-                    label="📥 Download Model",
-                    data=model_bytes,
-                    file_name=model_filename,
-                    mime="application/octet-stream"
-                )
-                
-                # Clean up
-                if os.path.exists(model_filename):
-                    os.remove(model_filename)
-        
-        except Exception as e:
-            st.error(f"An error occurred during model training: {str(e)}")
-            st.info("Try reducing the sample size or number of trees.")
+    optimizer = tf.keras.optimizers.get(optimizer_choice)  # Get optimizer instance
+    if optimizer_choice == "adam":
+        optimizer.learning_rate = learning_rate
+    elif optimizer_choice == "sgd":
+        optimizer.learning_rate = learning_rate
+    elif optimizer_choice == "rmsprop":
+        optimizer.learning_rate = learning_rate
 
-# Data visualizations
-st.markdown("---")
-st.subheader("📊 Data Insights & Visualization")
+    model.compile(optimizer=optimizer, loss="binary_crossentropy", metrics=["accuracy"])
 
-viz_col1, viz_col2 = st.columns(2)
+    # Train Model
+    history = model.fit(X, y, epochs=epochs, batch_size=32, validation_split=0.2, verbose=1)
 
-with viz_col1:
-    # Churn distribution
-    fig, ax = plt.subplots(figsize=(10, 6))
-    churn_counts = df['churned'].value_counts()
-    ax = sns.countplot(x='churned', data=df, palette='coolwarm')
-    ax.set_title("Customer Churn Distribution")
-    ax.set_xlabel("Churn (0 = No, 1 = Yes)")
-    
-    # Add count labels
-    for i, count in enumerate(churn_counts):
-        ax.text(i, count + 5, str(count), ha='center')
-    
-    st.pyplot(fig)
-    
-    # Calculate churn rate
-    churn_rate = df['churned'].mean() * 100
-    st.metric("Churn Rate", f"{churn_rate:.2f}%")
+    # Display Model Performance
+    st.subheader("📊 Training Progress")
+    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
 
-with viz_col2:
-    # Satisfaction vs Churn
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.boxplot(x='churned', y='satisfaction_score', data=df, palette='coolwarm')
-    ax.set_title("Customer Satisfaction vs Churn")
-    ax.set_xlabel("Churned")
-    ax.set_ylabel("Satisfaction Score (0-10)")
+    # Plot Loss
+    ax[0].plot(history.history['loss'], label='Training Loss')
+    ax[0].plot(history.history['val_loss'], label='Validation Loss')
+    ax[0].set_title("Loss Over Epochs")
+    ax[0].set_xlabel("Epochs")
+    ax[0].set_ylabel("Loss")
+    ax[0].legend()
+
+    # Plot Accuracy
+    ax[1].plot(history.history['accuracy'], label='Training Accuracy')
+    ax[1].plot(history.history['val_accuracy'], label='Validation Accuracy')
+    ax[1].set_title("Accuracy Over Epochs")
+    ax[1].set_xlabel("Epochs")
+    ax[1].set_ylabel("Accuracy")
+    ax[1].legend()
+
     st.pyplot(fig)
 
-# Additional visualizations
-st.subheader("📈 Additional Insights")
+    # Save trained model
+    with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp_model_file:
+        model.save(tmp_model_file.name)
+        st.download_button(
+            label="📥 Download Updated Model",
+            data=open(tmp_model_file.name, "rb"),
+            file_name="updated_customer_churn_model.h5",
+        )
+    # Clean up the temporary file
+    # os.remove(tmp_model_file.name) # Removed this line
 
-viz_col3, viz_col4 = st.columns(2)
+st.subheader("📈 Data Insights & Visualization")
 
-with viz_col3:
-    # Tenure vs Churn
-    fig, ax = plt.subplots(figsize=(10, 6))
-    sns.boxplot(x='churned', y='tenure', data=df, palette='coolwarm')
-    ax.set_title("Customer Tenure vs Churn")
-    ax.set_xlabel("Churned")
-    ax.set_ylabel("Tenure (Years)")
-    st.pyplot(fig)
-
-with viz_col4:
-    # Service issues vs Churn
-    fig, ax = plt.subplots(figsize=(10, 6))
-    service_pivot = pd.crosstab(df['service_issues'], df['churned'], normalize='index') * 100
-    service_pivot.plot(kind='bar', stacked=True, ax=ax, colormap='coolwarm')
-    ax.set_title("Service Issues vs Churn Rate")
-    ax.set_xlabel("Number of Service Issues")
-    ax.set_ylabel("Percentage")
-    ax.legend(title="Churned", labels=["No", "Yes"])
-    st.pyplot(fig)
-
-# Correlation heatmap
-st.subheader("🔄 Feature Correlations")
-
-# Get numerical columns
-num_cols = df.select_dtypes(include=np.number).columns.tolist()
-corr = df[num_cols].corr()
-
-# Plot heatmap
-fig, ax = plt.subplots(figsize=(12, 8))
-sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f', ax=ax)
-ax.set_title("Correlation Between Features")
+# Churn Distribution Plot
+fig, ax = plt.subplots(figsize=(6, 4))
+sns.countplot(x=df["churned"], palette="coolwarm", ax=ax)
+ax.set_title("Customer Churn Distribution")
+ax.set_xlabel("Churn (0 = No, 1 = Yes)")
 st.pyplot(fig)
 
-st.markdown("---")
+# Churn vs Age Distribution
+fig, ax = plt.subplots(figsize=(8, 5))
+sns.histplot(df, x="age", hue="churned", kde=True, element="step", palette="coolwarm", ax=ax)
+ax.set_title("Churn Distribution by Age")
+st.pyplot(fig)
+
+# Income Bracket vs Churn
+fig, ax = plt.subplots(figsize=(8, 5))
+sns.boxplot(x="churned", y="income_bracket", data=df, palette="coolwarm", ax=ax)
+ax.set_title("Income Bracket vs Churn")
+st.pyplot(fig)
+
 st.success("✅ Dashboard Ready!")
-st.info("This open-source project uses synthetic data to demonstrate churn prediction. The model uses RandomForest instead of TensorFlow for better performance.")
