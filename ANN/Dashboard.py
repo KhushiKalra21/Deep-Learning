@@ -6,6 +6,8 @@ import random
 import zipfile
 import requests
 from io import BytesIO
+import tempfile
+import os
 
 # Google Drive File IDs
 MODEL_FILE_ID = "1o02g0r4xjlhWDUewEAlGb-kFQU9QcCqP"
@@ -22,7 +24,18 @@ def download_from_drive(file_id):
 @st.cache_resource
 def load_model():
     model_file = download_from_drive(MODEL_FILE_ID)
-    model = tf.keras.models.load_model(model_file)
+
+    # Create a temporary file
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".h5") as temp_model:
+        temp_model.write(model_file.getvalue())  # Save BytesIO content to file
+        temp_model_path = temp_model.name  # Get file path
+
+    # Load model from the temporary file
+    model = tf.keras.models.load_model(temp_model_path)
+
+    # Delete temporary file after loading
+    os.unlink(temp_model_path)
+
     return model
 
 # Extract 50,000 Random Data Points from ZIP
@@ -41,6 +54,9 @@ def extract_random_data():
 # Load Model and Data
 model = load_model()
 df = extract_random_data()
+
+st.write("### ✅ Model Loaded Successfully!")
+st.write("### 📊 50,000 Random Data Points Extracted!")
 
 # Sidebar - Hyperparameter Slicers
 st.sidebar.title("🔧 Hyperparameter Tuning")
@@ -81,4 +97,3 @@ if st.sidebar.button("Run Prediction"):
     )
 
 st.write("📌 **Note:** Every time you run the dashboard, a new random 50,000 customers are selected from the dataset.")
-
