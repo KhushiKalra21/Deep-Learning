@@ -1,100 +1,101 @@
-import os
-import random
-import gdown
+import streamlit as st
 import pandas as pd
 import numpy as np
+import gdown
+import os
+import zipfile
 import tensorflow as tf
-import streamlit as st
+import random
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# 🚀 Fix GPU Issues
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"
-tf.keras.backend.clear_session()
+# Set Streamlit Page Configuration
+st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
 
-# 🚀 Define Correct File Paths (Subset Model & Data)
-subset_model_url = "https://drive.google.com/uc?id=11zVuiwTzPKBk5mvu7Ma2vDVXOs3t5y89"
-subset_data_url = "https://drive.google.com/uc?id=1FVnEkoFQJqufn_65_Euc8PrPyGBWAyLy"
+# Google Drive File IDs
+MODEL_FILE_ID = "11zVuiwTzPKBk5mvu7Ma2vDVXOs3t5y89"
+DATA_FILE_ID = "1FVnEkoFQJqufn_65_Euc8PrPyGBWAyLy"
 
-subset_model_path = "subset_customer_churn_model.h5"
-subset_data_path = "subset_customer_data.csv"
+# Filenames
+MODEL_PATH = "subset_model.h5"
+DATA_PATH = "subset_data.csv"
 
-# 🚀 Download Model & Data if Not Exists
-if not os.path.exists(subset_model_path):
-    gdown.download(subset_model_url, subset_model_path, quiet=False)
+# Download files if they don't exist
+def download_file(file_id, output):
+    url = f"https://drive.google.com/uc?id={file_id}"
+    if not os.path.exists(output):
+        gdown.download(url, output, quiet=False)
 
-if not os.path.exists(subset_data_path):
-    gdown.download(subset_data_url, subset_data_path, quiet=False)
+# Download Model & Dataset
+download_file(MODEL_FILE_ID, MODEL_PATH)
+download_file(DATA_FILE_ID, DATA_PATH)
 
-# 🚀 Load Data
-df = pd.read_csv(subset_data_path)
+# Load Model
+model = tf.keras.models.load_model(MODEL_PATH)
 
-# 🚀 Remove Completely Empty Columns
-df.dropna(axis=1, how='all', inplace=True)
+# Load Data
+if os.path.exists(DATA_PATH):
+    df = pd.read_csv(DATA_PATH)
+else:
+    st.error("Dataset file not found!")
 
-# 🚀 Extract 50,000 Random Samples Each Time
-df_sampled = df.sample(n=50000, random_state=random.randint(1, 1000))
+# Drop completely null columns
+df.dropna(axis=1, how="all", inplace=True)
 
-# 🚀 Streamlit UI
-st.title("📊 ANN-Based Customer Churn Prediction Dashboard (Subset)")
+# Select 50,000 random rows each time
+df_sample = df.sample(n=50000, random_state=random.randint(1, 1000))
 
 # Sidebar Controls
-st.sidebar.header("🔧 Model Hyperparameters")
-epochs = st.sidebar.slider("Epochs", 1, 100, 50)
-learning_rate = st.sidebar.selectbox("Learning Rate", [0.01, 0.001, 0.0001])
+st.sidebar.header("Hyperparameter Settings")
+epochs = st.sidebar.slider("Epochs", min_value=1, max_value=50, value=10)
+learning_rate = st.sidebar.selectbox("Learning Rate", [0.001, 0.01, 0.1])
 activation_function = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh"])
-optimizer_choice = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
+optimizer = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
 
-# 🚀 Train Model Button
-if st.button("🚀 Train Model"):
-    model = tf.keras.models.load_model(subset_model_path)
-    model.compile(optimizer=optimizer_choice, loss='binary_crossentropy', metrics=['accuracy'])
-    
-    X = df_sampled.drop(columns=['churned'])
-    y = df_sampled['churned']
+# Train Model Button
+if st.sidebar.button("Train Model"):
+    st.sidebar.write("Training... (Mock Implementation)")
+    # Here you should implement model training with hyperparameters
 
-    model.fit(X, y, epochs=epochs, verbose=1)
-    
-    st.success("✅ Model Trained Successfully!")
+# Dashboard Title
+st.title("Customer Churn Prediction Dashboard")
 
-# 🚀 Data Visualization
-st.subheader("🔍 Data Insights")
+# Display Data Sample
+st.subheader("📊 Sample Data (Random 50,000 Rows)")
+st.dataframe(df_sample.head())
 
-# 📈 Churn Distribution Pie Chart
+# **Visualizations**
+st.subheader("📈 Data Insights")
+
+# Churn Count Plot
 fig, ax = plt.subplots()
-df_sampled["churned"].value_counts().plot.pie(autopct="%1.1f%%", colors=["green", "red"], startangle=90, ax=ax)
-ax.set_ylabel("")
-ax.set_title("Churned vs. Retained Customers")
+sns.countplot(x=df_sample["churned"], palette="viridis", ax=ax)
 st.pyplot(fig)
 
-# 📊 Churn Rate by Income Bracket
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.boxplot(x="income_bracket", y="churned", data=df_sampled, ax=ax, palette="coolwarm")
-ax.set_title("Churn Rate by Income Bracket")
+# Age Distribution
+fig, ax = plt.subplots()
+sns.histplot(df_sample["age"], bins=30, kde=True, ax=ax, color="blue")
 st.pyplot(fig)
 
-# 📊 Membership Years vs. Churn
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.histplot(df_sampled, x="membership_years", hue="churned", multiple="stack", bins=30, palette="coolwarm", ax=ax)
-ax.set_title("Churn Trend by Membership Years")
+# Purchase Frequency vs. Churn
+fig, ax = plt.subplots()
+sns.boxplot(x="churned", y="purchase_frequency", data=df_sample, ax=ax, palette="coolwarm")
 st.pyplot(fig)
 
-# 📉 Purchase Frequency vs. Churn
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.kdeplot(df_sampled[df_sampled["churned"] == 1]["purchase_frequency"], shade=True, color="red", label="Churned", ax=ax)
-sns.kdeplot(df_sampled[df_sampled["churned"] == 0]["purchase_frequency"], shade=True, color="green", label="Retained", ax=ax)
-ax.set_title("Purchase Frequency Density by Churn")
-ax.legend()
-st.pyplot(fig)
+# **Predictions**
+st.subheader("🔮 Predict Churn for a New Customer")
 
-# 📊 Total Transactions vs. Churn (Boxplot)
-fig, ax = plt.subplots(figsize=(10, 5))
-sns.boxplot(x="churned", y="total_transactions", data=df_sampled, ax=ax, palette="coolwarm")
-ax.set_title("Total Transactions vs. Churn")
-st.pyplot(fig)
+# Input Fields
+age = st.number_input("Age", min_value=18, max_value=80, value=30)
+income = st.number_input("Income Bracket", min_value=1, max_value=10, value=5)
+loyalty = st.selectbox("Loyalty Program", [0, 1])
+transactions = st.number_input("Total Transactions", min_value=0, max_value=500, value=50)
 
-# 📈 Heatmap of Feature Correlations
-st.subheader("📊 Correlation Heatmap")
-fig, ax = plt.subplots(figsize=(12, 6))
-sns.heatmap(df_sampled.corr(), annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5, ax=ax)
-st.pyplot(fig)
+# Predict Button
+if st.button("Predict Churn"):
+    input_data = np.array([[age, income, loyalty, transactions]])
+    prediction = model.predict(input_data)
+    st.write(f"Churn Probability: {prediction[0][0]:.2f}")
+
+# Footer
+st.markdown("**Project by [Your Name] | AI-Powered Churn Prediction**")
