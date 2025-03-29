@@ -1,8 +1,9 @@
 streamlit
 pandas
 numpy
-tensorflow
 scikit-learn
-seaborn
+tensorflow
 matplotlib
+seaborn
+plotly
 gdown
