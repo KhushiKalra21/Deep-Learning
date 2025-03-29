@@ -1,75 +1,141 @@
 import streamlit as st
-import numpy as np
 import pandas as pd
+import numpy as np
 import tensorflow as tf
-import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
-from sklearn.preprocessing import StandardScaler
+import gdown
+import zipfile
+import os
 import random
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import StandardScaler
 
-# Load trained ANN model
+# Set Streamlit Page Layout
+st.set_page_config(page_title="Customer Churn Prediction", layout="wide")
+
+# Google Drive File Links (Use the Correct Ones You Provided)
+MODEL_URL = "https://drive.google.com/uc?id=1o02g0r4xjlhWDUewEAlGb-kFQU9QcCqP"
+DATASET_ZIP_URL = "https://drive.google.com/uc?id=1X40NeGmYe0epMXrewSVlbQscLaX4u9qT"
+
+# File Paths
+MODEL_PATH = "customer_churn_model.h5"
+DATASET_ZIP_PATH = "customer_data.zip"
+EXTRACTED_FOLDER = "customer_dataset"
+
+# 🔹 Download & Load Model
 @st.cache_resource
-def load_ann_model():
-    return load_model("customer_churn_model.h5")
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+    return tf.keras.models.load_model(MODEL_PATH)
 
-model = load_ann_model()
-
-# Load dataset from Google Drive link (Replace with actual processing logic)
+# 🔹 Download & Extract Dataset
 @st.cache_data
-def load_data():
-    df = pd.read_csv("customer_data.csv")  # Replace with extracted dataset
+def load_dataset():
+    if not os.path.exists(EXTRACTED_FOLDER):
+        gdown.download(DATASET_ZIP_URL, DATASET_ZIP_PATH, quiet=False)
+        with zipfile.ZipFile(DATASET_ZIP_PATH, 'r') as zip_ref:
+            zip_ref.extractall(EXTRACTED_FOLDER)
+    
+    # Locate CSV File Inside Extracted Folder
+    for file in os.listdir(EXTRACTED_FOLDER):
+        if file.endswith(".csv"):
+            csv_path = os.path.join(EXTRACTED_FOLDER, file)
+            break
+    
+    # Load Dataset
+    df = pd.read_csv(csv_path)
+
+    # 🔹 Drop Unwanted Columns & Null Values
+    columns_to_remove = ["CustomerID", "Name", "Email"]  # Modify as needed
+    df.drop(columns=[col for col in columns_to_remove if col in df.columns], inplace=True)
+    df.dropna(inplace=True)  # Remove all null rows
+
     return df
 
-df = load_data()
+# Load Model & Dataset
+model = load_model()
+df = load_dataset()
 
-# Select 50,000 random samples
-def get_random_sample(df):
-    return df.sample(n=50000, random_state=random.randint(1, 10000))
+# 🔹 Extract 50,000 Random Data Points Each Time
+def get_random_sample():
+    return df.sample(50000, replace=False, random_state=random.randint(1, 10000))
 
-sample_df = get_random_sample(df)
-
-# Preprocessing
-features = ["age", "income_bracket", "loyalty_program", "membership_years", "purchase_frequency", "total_transactions", "days_since_last_purchase", "social_media_engagement", "customer_support_calls"]
-X = sample_df[features]
-scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-
-# Make Predictions
-y_pred = model.predict(X_scaled)
-churn_prob = y_pred.flatten()
-sample_df["churn_probability"] = churn_prob
-
-# Streamlit UI
-st.title("Customer Churn Prediction Dashboard")
-st.sidebar.header("Hyperparameter Controls")
-
-# Hyperparameters
-epochs = st.sidebar.slider("Epochs", 1, 100, 10)
-learning_rate = st.sidebar.selectbox("Learning Rate", [0.001, 0.01, 0.1, 0.5])
-activation = st.sidebar.radio("Activation Function", ["relu", "sigmoid", "tanh", "softmax"])
+# 🔹 Sidebar: Hyperparameter Tuning
+st.sidebar.header("Hyperparameter Tuning")
+epochs = st.sidebar.slider("Epochs", min_value=1, max_value=50, value=10)
+learning_rate = st.sidebar.selectbox("Learning Rate", [0.001, 0.01, 0.1, 0.0001])
+activation_function = st.sidebar.selectbox("Activation Function", ["relu", "sigmoid", "tanh", "softmax"])
 optimizer = st.sidebar.selectbox("Optimizer", ["adam", "sgd", "rmsprop"])
-dense_layers = st.sidebar.slider("Number of Dense Layers", 2, 5, 3)
-neurons = st.sidebar.selectbox("Neurons per Layer", [32, 64, 128, 256])
-dropout = st.sidebar.checkbox("Apply Dropout")
+batch_size = st.sidebar.slider("Batch Size", min_value=16, max_value=128, value=32)
 
-# Churn Probability Visualization
-st.subheader("Churn Probability Distribution")
-fig, ax = plt.subplots()
-ax.hist(sample_df["churn_probability"], bins=30, color='blue', alpha=0.7)
-ax.set_xlabel("Churn Probability")
-ax.set_ylabel("Frequency")
-st.pyplot(fig)
+# 🔹 Main UI Layout
+st.title("📊 Customer Churn Prediction Dashboard")
 
-# Filter Insights
-st.subheader("Customer Insights")
-age_filter = st.slider("Filter by Age", int(df.age.min()), int(df.age.max()), (25, 50))
-income_filter = st.slider("Filter by Income Bracket", int(df.income_bracket.min()), int(df.income_bracket.max()), (1, 5))
-filtered_data = sample_df[(sample_df.age.between(*age_filter)) & (sample_df.income_bracket.between(*income_filter))]
-st.write(filtered_data.head())
+# 🔹 "Train Model" Button (Outside Sidebar)
+if st.button("Train the Model 🚀"):
+    # Load Random Sample Data
+    df_sample = get_random_sample()
 
-st.write("\n\n**Actionable Insights:**")
-st.write("✔ Customers with higher purchase frequency have lower churn rates.")
-st.write("✔ Younger customers are more likely to churn due to competitive offers.")
-st.write("✔ High social media engagement correlates with customer retention.")
+    # Convert Categorical to Numeric
+    df_sample = pd.get_dummies(df_sample)
 
-st.success("Dashboard successfully loaded!")
+    # Split Data
+    X = df_sample.drop(columns=["churned"])
+    y = df_sample["churned"]
+
+    # Normalize Data
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+
+    # Train Model
+    model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=learning_rate), 
+                  loss="binary_crossentropy", metrics=["accuracy"])
+    
+    history = model.fit(X_scaled, y, epochs=epochs, batch_size=batch_size, verbose=0)
+
+    # 🎯 Show Training Progress
+    st.success("Model Training Completed! 🎉")
+
+    # 🔹 Plot Training Loss & Accuracy
+    fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+
+    # Loss Plot
+    ax[0].plot(history.history["loss"], label="Loss", color="red")
+    ax[0].set_title("Training Loss")
+    ax[0].set_xlabel("Epochs")
+    ax[0].set_ylabel("Loss")
+    ax[0].legend()
+
+    # Accuracy Plot
+    ax[1].plot(history.history["accuracy"], label="Accuracy", color="green")
+    ax[1].set_title("Training Accuracy")
+    ax[1].set_xlabel("Epochs")
+    ax[1].set_ylabel("Accuracy")
+    ax[1].legend()
+
+    st.pyplot(fig)
+
+    # 🔹 Feature Importance (Correlation Heatmap)
+    st.subheader("🔍 Feature Importance - Heatmap")
+    plt.figure(figsize=(10, 6))
+    sns.heatmap(df_sample.corr(), annot=True, cmap="coolwarm", fmt=".2f")
+    st.pyplot(plt)
+
+    # 🔹 Churn Rate Insights
+    st.subheader("📈 Churn Rate Distribution")
+    fig, ax = plt.subplots(figsize=(8, 5))
+    sns.countplot(x="churned", data=df_sample, palette="pastel", ax=ax)
+    ax.set_title("Churned vs Retained Customers")
+    st.pyplot(fig)
+
+    # 🔹 Age vs Churn Analysis
+    if "age" in df_sample.columns:
+        st.subheader("📊 Churn by Age Group")
+        fig, ax = plt.subplots(figsize=(8, 5))
+        sns.boxplot(x="churned", y="age", data=df_sample, palette="Set2", ax=ax)
+        ax.set_title("Age vs Churn Analysis")
+        st.pyplot(fig)
+
+    st.balloons()
+
