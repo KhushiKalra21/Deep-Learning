@@ -163,13 +163,13 @@ if st.button("🚀 Train Model"):
         df_sample = df.sample(n=50000, random_state=random.randint(1, 1000))
 
         # 🎯 Feature Selection
-        features = ['age', 'income', 'loyalty', 'transactions']
+        features = ['age', 'income_bracket', 'loyalty_program', 'avg_transaction_value'] # Changed feature names
         target = 'churned'
 
         # 🔄 Encode Categorical Features
         # No categorical features in the provided sample data, but including for potential use
         # encoder = OrdinalEncoder()
-        # df_sample[['Gender']] = encoder.fit_transform(df_sample[['Gender']])
+        # df_sample[['gender']] = encoder.fit_transform(df_sample[['gender']])
 
         # Handle Class Imbalance with SMOTE
         X = df_sample[features]
@@ -303,18 +303,15 @@ st.subheader("🔮 Predict Churn for a New Customer")
 
 # Input Fields
 age = st.number_input("Age", min_value=18, max_value=80, value=30)
-income = st.number_input("Income Bracket", min_value=1, max_value=10, value=5)
-loyalty = st.selectbox("Loyalty Program", [0, 1])
-transactions = st.number_input("Total Transactions", min_value=0, max_value=500, value=50)
+income_bracket = st.number_input("Income Bracket", min_value=1, max_value=10, value=5) # Changed variable name
+loyalty_program = st.selectbox("Loyalty Program", [0, 1])
+avg_transaction_value = st.number_input("Avg Transaction Value", min_value=0, max_value=500, value=50) # Changed variable name
 
 # Predict Button
 if st.button("Predict Churn"):
     # Load model if it's not already loaded
     if 'model' not in locals():
         model = tf.keras.models.load_model(MODEL_PATH)
-    input_data = np.array([[age, income, loyalty, transactions]])
+    input_data = np.array([[age, income_bracket, loyalty_program, avg_transaction_value]]) # Changed variable name
     prediction = model.predict(input_data)
     st.write(f"Churn Probability: {prediction[0][0]:.2f}")
-
-# Footer
-st.markdown("*Project by [Your Name] | AI-Powered Churn Prediction*")
