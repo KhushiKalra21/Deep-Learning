@@ -298,20 +298,5 @@ fig, ax = plt.subplots()
 sns.boxplot(x="churned", y="purchase_frequency", data=df, ax=ax, palette="coolwarm")
 st.pyplot(fig)
 
-# *Predictions*
-st.subheader("🔮 Predict Churn for a New Customer")
 
-# Input Fields
-age = st.number_input("Age", min_value=18, max_value=80, value=30)
-income_bracket = st.number_input("Income Bracket", min_value=1, max_value=10, value=5) # Changed variable name
-loyalty_program = st.selectbox("Loyalty Program", [0, 1])
-avg_transaction_value = st.number_input("Avg Transaction Value", min_value=0, max_value=500, value=50) # Changed variable name
 
-# Predict Button
-if st.button("Predict Churn"):
-    # Load model if it's not already loaded
-    if 'model' not in locals():
-        model = tf.keras.models.load_model(MODEL_PATH)
-    input_data = np.array([[age, income_bracket, loyalty_program, avg_transaction_value]]) # Changed variable name
-    prediction = model.predict(input_data)
-    st.write(f"Churn Probability: {prediction[0][0]:.2f}")
