@@ -2,9 +2,7 @@ streamlit
 pandas
 numpy
 tensorflow
-gdown
 scikit-learn
-matplotlib
 seaborn
-imblearn
-shap
+matplotlib
+gdown
