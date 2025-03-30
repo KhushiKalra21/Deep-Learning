@@ -31,16 +31,4 @@ The model has been trained on a dataset containing over **500,000 customer recor
   - Activation functions (**ReLU, Sigmoid, Tanh, Softmax**).  
   - Gradient descent variations (**Batch, Mini-Batch, Stochastic**).  
 
-## **Setup & Installation**  
-To run the project locally, follow these steps:  
 
-```bash
-# Clone the repository
-git clone <your-repository-link>
-cd <your-project-folder>
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the Streamlit app
-streamlit run app.py
