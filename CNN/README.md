@@ -43,16 +43,3 @@ The goal is to improve digit classification accuracy across diverse writing styl
 
 ---
 
-## Setup & Installation  
-To run the project locally:  
-
-```bash
-# Clone the repository
-git clone your-repository-link
-cd your-project-folder
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run Streamlit app
-streamlit run app.py
