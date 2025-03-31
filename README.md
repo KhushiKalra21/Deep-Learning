@@ -35,8 +35,7 @@ Welcome to the **Deep Learning Projects Repository**. This repository contains f
 * **Contributors**: Rushil Kohli, Khushi Kalra  
 * **Description**: This project applies LSTM networks to stock price prediction and financial time-series forecasting, leveraging historical market data to detect trends and patterns.  
 * **Folder**: `LSTM/`  
-* **More Info**: Read LSTM README
-* https://github.com/KhushiKalra21/Deep-Learning/tree/main/LSTM
+* **More Info**: [Read LSTM README](https://github.com/KhushiKalra21/Deep-Learning/tree/main/LSTM)
 [![Open LSTM Project](https://img.shields.io/badge/Open%20LSTM%20Project-blue?style=for-the-badge)](https://github.com/KhushiKalra21/Deep-Learning/tree/main/LSTM)
 
 
