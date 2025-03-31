@@ -3,6 +3,8 @@
 ## **Live Streamlit Dashboard**  
 [Customer Churn Prediction Dashboard](https://deep-learning-mzmchluyqbaoxvetuhzmma.streamlit.app/)  
 
+#### REPORT can be viewed here : [REPORT](https://colab.research.google.com/github/KhushiKalra21/Deep-Learning/blob/main/ANN/kkpg2134_ANN_Report.ipynb)
+
 ## **Project Overview**  
 This project focuses on **customer churn prediction** using an **Artificial Neural Network (ANN)**. The model is trained to classify customers as **likely to churn or stay retained**, based on key customer attributes such as engagement, purchase behavior, and loyalty program participation.  
 
