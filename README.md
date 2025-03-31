@@ -38,6 +38,13 @@ Welcome to the **Deep Learning Projects Repository**. This repository contains f
 * **More Info**: Read LSTM README
 * https://github.com/KhushiKalra21/Deep-Learning/tree/main/LSTM
 
+* ## 📂 Project Repository
+
+Click the button below to open the **LSTM Project Folder**:
+
+[![Open LSTM Project](https://img.shields.io/badge/Open%20LSTM%20Project-blue?style=for-the-badge)](https://github.com/KhushiKalra21/Deep-Learning/tree/main/LSTM)
+
+
 ## **License**
 
 This repository is licensed under the **Apache License 2.0**. See the LICENSE file for details.
