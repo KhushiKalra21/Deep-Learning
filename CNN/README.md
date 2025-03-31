@@ -4,6 +4,8 @@
 ## Live Streamlit App  
 [Streamlit App Link](https://deep-learning-xrucdcrsre5nng4ysaw6n8.streamlit.app/)
 
+#### REPORT can be viewed here : [REPORT](https://colab.research.google.com/drive/1SwmSA3cbYHQ3k986Z_0mMZtd2cGmWupF?usp=sharing)
+
 ---
 
 ## Project Overview  
