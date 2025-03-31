@@ -12,6 +12,7 @@ Welcome to the **Deep Learning Projects Repository**. This repository contains f
 * **Description**: This project involves training an Artificial Neural Network (ANN) on a marketing dataset with one million records to analyze and predict customer behavior. It leverages feature engineering and model optimization to improve predictive performance.  
 * **Folder**: `ANN/`  
 * **More Info**: Read ANN README
+* https://github.com/KhushiKalra21/Deep-Learning/tree/main/ANN
 
 ### **2\. Convolutional Neural Networks (CNN)**
 
@@ -19,6 +20,7 @@ Welcome to the **Deep Learning Projects Repository**. This repository contains f
 * **Description**: This project implements CNNs using Google Colab for training and evaluation. It focuses on image classification and object detection tasks, making use of deep learning frameworks such as TensorFlow.  
 * **Folder**: `CNN/`  
 * **More Info**: Read CNN README
+* https://github.com/KhushiKalra21/Deep-Learning/tree/main/CNN
 
 ### **3\. Recurrent Neural Networks (RNN)**
 
@@ -26,6 +28,7 @@ Welcome to the **Deep Learning Projects Repository**. This repository contains f
 * **Description**: This project explores the use of Recurrent Neural Networks (RNNs) for time-series and sequential data analysis. It includes sentiment analysis and text generation tasks.  
 * **Folder**: `RNN/`  
 * **More Info**: Read RNN README
+* https://github.com/KhushiKalra21/Deep-Learning/tree/main/RNN
 
 ### **4\. Long Short-Term Memory Networks (LSTM)**
 
@@ -33,6 +36,7 @@ Welcome to the **Deep Learning Projects Repository**. This repository contains f
 * **Description**: This project applies LSTM networks to stock price prediction and financial time-series forecasting, leveraging historical market data to detect trends and patterns.  
 * **Folder**: `LSTM/`  
 * **More Info**: Read LSTM README
+* https://github.com/KhushiKalra21/Deep-Learning/tree/main/LSTM
 
 ## **License**
 
