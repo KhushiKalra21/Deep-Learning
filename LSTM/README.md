@@ -58,8 +58,8 @@ The project can be extended in several ways:
 
 ## Contributors
 
-* Rushil Kohli - [Follow](https://github.com/Rushil-K)
 * Khushi Kalra - [Follow](https://github.com/KhushiKalra21)
+* Rushil Kohli - [Follow](https://github.com/Rushil-K)
 
 ## License
 
