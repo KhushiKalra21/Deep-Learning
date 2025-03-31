@@ -46,6 +46,7 @@ To explore the projects, navigate to their respective directories and follow the
 
 For any questions or contributions, feel free to open an issue or submit a pull request.
 Follow us :
-- [Rushil Kohli](https://github.com/Rushil-K)
+
 - [Khushi Kalra](https://github.com/KhushiKalra21)
-- [Navneet Mittal](https://github.com/Navneet-Mittal911)
+- [Rushil Kohli](https://github.com/Rushil-K)
+- [Priyanka Goyal](https://github.com/priyanka-3011)
