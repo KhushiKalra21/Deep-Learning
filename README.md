@@ -8,14 +8,14 @@ Welcome to the **Deep Learning Projects Repository**. This repository contains f
 
 ### **1\. Artificial Neural Networks (ANN)**
 
-* **Contributors**: Rushil Kohli, Navneet Mittal  
+* **Contributors**: Khushi Kalra, Priyanka Goyal  
 * **Description**: This project involves training an Artificial Neural Network (ANN) on a marketing dataset with one million records to analyze and predict customer behavior. It leverages feature engineering and model optimization to improve predictive performance.  
 * **Folder**: `ANN/`  
 * **More Info**: [Read ANN README](https://github.com/KhushiKalra21/Deep-Learning/blob/main/ANN/README.md)
 
 ### **2\. Convolutional Neural Networks (CNN)**
 
-* **Contributors**: Rushil Kohli, Navneet Mittal  
+* **Contributors**: Khushi Kalra, Priyanka Goyal  
 * **Description**: This project implements CNNs using Google Colab for training and evaluation. It focuses on image classification and object detection tasks, making use of deep learning frameworks such as TensorFlow.  
 * **Folder**: `CNN/`  
 * **More Info**: [Read CNN README](https://github.com/KhushiKalra21/Deep-Learning/tree/main/CNN/README.md)
